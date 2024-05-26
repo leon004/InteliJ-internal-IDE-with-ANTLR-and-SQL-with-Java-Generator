@@ -17,6 +17,7 @@ import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatSolarizedDarkI
 import com.formdev.flatlaf.themes.FlatMacDarkLaf;
 import com.formdev.flatlaf.themes.FlatMacLightLaf;
 import java.awt.Desktop;
+import java.awt.Color;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -24,10 +25,12 @@ import java.io.IOException;
 import java.io.StringBufferInputStream;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.swing.JFileChooser;
-import javax.swing.JOptionPane;
-import javax.swing.UIManager;
-import javax.swing.UnsupportedLookAndFeelException;
+import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultHighlighter;
+import javax.swing.text.Highlighter;
 import org.antlr.runtime.ANTLRInputStream;
 import org.antlr.runtime.CommonTokenStream;
 import org.antlr.runtime.RecognitionException;
@@ -35,42 +38,94 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
-import javax.swing.SwingUtilities;
 
 public class GUI extends javax.swing.JFrame {
 
-    JFileChooser seleccionar=new JFileChooser();
+    JFileChooser seleccionar = new JFileChooser();
     File archivo;
     FileInputStream entrada1;
     FileOutputStream salida1;
+    private final Highlighter.HighlightPainter errorPainter = new DefaultHighlighter.DefaultHighlightPainter(Color.RED);
+
     /**
      * Creates new form GUI
      */
     public GUI() {
         initComponents();
+        entrada.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                validateInput();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                validateInput();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                validateInput();
+            }
+        });
     }
 
-    public String AbrirArchivo(File archivo){
-        String documento="";
+    private void validateInput() {
+        String text = entrada.getText();
+        ANTLRInputStream input = null;
         try {
-            entrada1=new FileInputStream(archivo);
+            input = new ANTLRInputStream(new StringBufferInputStream(text));
+        } catch (IOException ex) {
+            Logger.getLogger(GUI.class.getName()).log(Level.SEVERE, null, ex);
+        }
+
+        TgramaticaReconoceLengBDLexer lexer = new TgramaticaReconoceLengBDLexer(input);
+        CommonTokenStream tokens = new CommonTokenStream(lexer);
+        TgramaticaReconoceLengBDParser parser = new TgramaticaReconoceLengBDParser(tokens);
+        parser.setSalida(new JTextArea()); // output is not used here
+        parser.setCopJava(new JTextArea()); // output is not used here
+
+        entrada.getHighlighter().removeAllHighlights();
+        Compilar.setEnabled(true);
+
+        try {
+            parser.inicio();
+        } catch (RuntimeException | RecognitionException ex) {
+            if (ex.getCause() instanceof RecognitionException) {
+                RecognitionException re = (RecognitionException) ex.getCause();
+                try {
+                    int errorOffset = re.index;
+                    int length = tokens.size() > errorOffset ? tokens.getTokens().get(errorOffset).getText().length() : 1;
+                    entrada.getHighlighter().addHighlight(errorOffset, errorOffset + length, errorPainter);
+                    Compilar.setEnabled(false);
+                } catch (BadLocationException ble) {
+                    Logger.getLogger(GUI.class.getName()).log(Level.SEVERE, null, ble);
+                }
+            }
+        }
+    }
+
+    public String AbrirArchivo(File archivo) {
+        String documento = "";
+        try {
+            entrada1 = new FileInputStream(archivo);
             int ascci;
-            while((ascci=entrada1.read())!=-1){
-                char caracter=(char)ascci;
-                documento+=caracter;
+            while ((ascci = entrada1.read()) != -1) {
+                char caracter = (char) ascci;
+                documento += caracter;
             }
         } catch (Exception e) {
         }
         return documento;
     }
 
-    public String GuardarArchivo(File archivo, String documento){
-        String mensaje=null;
+    public String GuardarArchivo(File archivo, String documento) {
+        String mensaje = null;
         try {
-            salida1=new FileOutputStream(archivo);
-            byte[] bytxt=documento.getBytes();
+            salida1 = new FileOutputStream(archivo);
+            byte[] bytxt = documento.getBytes();
             salida1.write(bytxt);
-            mensaje="Archivo guardado";
+            mensaje = "Archivo guardado";
         } catch (Exception e) {
         }
         return mensaje;
@@ -317,6 +372,7 @@ public class GUI extends javax.swing.JFrame {
         salida.setText("");
         copJava.setText("");
         codigo.setText("");
+        entrada.getHighlighter().removeAllHighlights();
     }//GEN-LAST:event_LimpiarActionPerformed
 
     private void CompilarActionPerformed(java.awt.event.ActionEvent evt) {
@@ -403,7 +459,6 @@ public class GUI extends javax.swing.JFrame {
         }
     }
 
-
     private void jMenuItem5ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jMenuItem5ActionPerformed
         try {
             // Cambia el tema aquí, puedes usar el tema de tu elección
@@ -429,7 +484,6 @@ public class GUI extends javax.swing.JFrame {
     }//GEN-LAST:event_jMenuItem6ActionPerformed
 
     private void ayudaActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_ayudaActionPerformed
-
 
     }//GEN-LAST:event_ayudaActionPerformed
 
